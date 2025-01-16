@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>选择图片</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        .image-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            gap: 10px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .image-container img {
+            width: 200px;
+            height: 200px;
+            object-fit: cover;
+            border: 2px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>请选择目标图片</h1>
+    <div id="image-container" class="image-container">
+        <!-- 显示目标图片 -->
+        <img id="object-img" src="{{ url_for('static', filename='images/object/' + object_image) }}" alt="Object Image">
+
+        <!-- 显示干扰图片 -->
+        {% for image in distract_images %}
+            <img class="distract-img" src="{{ url_for('static', filename='images/distract/' + image) }}" alt="Distractor Image">
+        {% endfor %}
+    </div>
+
+    <script>
+        $(document).ready(function(){
+            let startTime = new Date().getTime();  // 用户看到图片时的时间戳
+
+            // 当目标图片或干扰图片被点击时
+            $(".distract-img, #object-img").click(function(){
+                let endTime = new Date().getTime();  // 用户点击时的时间戳
+                let reactionTime = (endTime - startTime) / 1000;  // 计算反应时间（单位：秒）
+
+                let clickedImage = $(this).attr("src");  // 获取点击图片的src
+                let targetImage = $("#object-img").attr("src");  // 获取目标图片的src
+
+                // 发送AJAX请求保存反应时间和点击的图片
+                $.ajax({
+                    url: "/save_reaction",  // 请求路径
+                    method: "POST",     // 使用POST方法
+                    contentType: "application/json",
+                    data: JSON.stringify({
+                        reaction_time: reactionTime,
+                        clicked_image: clickedImage,
+                        target_image: targetImage
+                    }),
+                    success: function(response){
+                        console.log(response.status);  // 处理成功后的响应
+                    }
+                });
+
+                // 发送请求获取新的图片
+                $.ajax({
+                    url: "/selection",  // 请求路径
+                    method: "POST",     // 使用POST方法
+                    data: {
+                        clicked_image: clickedImage  // 发送用户点击的图片
+                    },
+                    success: function(response){
+                        if (response.status === 'done') {
+                            // 实验结束，跳转到 experiment_done 页面
+                            window.location.href = response.redirect_url;
+                        } else {
+                            // 更新目标图片
+                            $('#object-img').attr('src', response.object_image_url);
+
+                            // 更新干扰图片
+                            $(".distract-img").each(function(index){
+                                $(this).attr('src', response.distract_images[index]);  // 更新干扰图片
+                            });
+
+                            startTime = new Date().getTime();  // 重新记录开始时间，准备下一轮点击
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
